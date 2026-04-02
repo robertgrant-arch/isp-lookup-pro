@@ -22,7 +22,7 @@ async function geocodeAddress(address: string): Promise<CensusMatch> {
     'https://geocoding.geo.census.gov/geocoder/locations/onelineaddress'
   );
   url.searchParams.set('address', address);
-  url.searchParams.set('benchmark', '2020');
+  url.searchParams.set('benchmark', 'Public_AR_Current');
   url.searchParams.set('format', 'json');
 
   const res = await fetch(url.toString(), { cache: 'no-store' });
