@@ -419,7 +419,7 @@ export default function DashboardPage() {
           </p>
           <pre className="font-mono text-xs text-zinc-400 bg-black/40 rounded px-4 py-3 overflow-x-auto">
 {`curl -X GET \\
-  "https://your-domain.vercel.app/api/v1/lookup?address=1600+Pennsylvania+Ave+NW+Washington+DC&api_key=YOUR_API_KEY" \\
+  "https://isp-lookup-pro-nine.vercel.app/api/v1/lookup?address=1600+Pennsylvania+Ave+NW+Washington+DC&api_key=YOUR_API_KEY" \\
   -H "Accept: application/json"`}
           </pre>
         </div>
