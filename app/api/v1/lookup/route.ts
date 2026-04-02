@@ -6,6 +6,12 @@ import type { LookupResponse } from '@/lib/types';
 
 export const runtime = 'nodejs';
 
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+};
+
 function errorResponse(message: string, code: string, status: number) {
   return NextResponse.json(
     {
@@ -13,7 +19,7 @@ function errorResponse(message: string, code: string, status: number) {
       error: { code, message },
       timestamp: new Date().toISOString(),
     },
-    { status }
+    { status, headers: corsHeaders }
   );
 }
 
@@ -38,7 +44,7 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  // ── Address ───────────────────────────────────────────────────────────────
+  // ── Address ─────────────────────────────────────────────────────────────
   const address = req.nextUrl.searchParams.get('address')?.trim();
   if (!address) {
     return errorResponse('address query parameter is required', 'MISSING_ADDRESS', 400);
@@ -47,26 +53,28 @@ export async function GET(req: NextRequest) {
     return errorResponse('Address is too short', 'INVALID_ADDRESS', 400);
   }
 
-  // ── Cache ─────────────────────────────────────────────────────────────────
+  // ── Cache ───────────────────────────────────────────────────────────────
   const cacheKey = `lookup:${address.toLowerCase()}`;
-  const cached = cacheGet<LookupResponse>(cacheKey);
+  const cached = cacheGet(cacheKey);
   if (cached) {
-    return NextResponse.json({
-      success: true,
-      cached: true,
-      data: cached,
-      usage: {
-        requests_today: auth.record!.requests_today,
-        remaining_today: Math.max(0, auth.record!.rate_limit - auth.record!.requests_today),
-        rate_limit: auth.record!.rate_limit,
+    return NextResponse.json(
+      {
+        success: true,
+        cached: true,
+        data: cached,
+        usage: {
+          requests_today: auth.record!.requests_today,
+          remaining_today: Math.max(0, auth.record!.rate_limit - auth.record!.requests_today),
+          rate_limit: auth.record!.rate_limit,
+        },
       },
-    });
+      { headers: corsHeaders }
+    );
   }
 
-  // ── FCC Lookup ────────────────────────────────────────────────────────────
+  // ── FCC Lookup ──────────────────────────────────────────────────────────
   try {
     const result = await lookupAddress(address);
-
     if (!result) {
       return errorResponse(
         'Address not found in FCC Broadband Map database',
@@ -87,16 +95,19 @@ export async function GET(req: NextRequest) {
 
     cacheSet(cacheKey, response);
 
-    return NextResponse.json({
-      success: true,
-      cached: false,
-      data: response,
-      usage: {
-        requests_today: auth.record!.requests_today,
-        remaining_today: Math.max(0, auth.record!.rate_limit - auth.record!.requests_today),
-        rate_limit: auth.record!.rate_limit,
+    return NextResponse.json(
+      {
+        success: true,
+        cached: false,
+        data: response,
+        usage: {
+          requests_today: auth.record!.requests_today,
+          remaining_today: Math.max(0, auth.record!.rate_limit - auth.record!.requests_today),
+          rate_limit: auth.record!.rate_limit,
+        },
       },
-    });
+      { headers: corsHeaders }
+    );
   } catch (err) {
     console.error('[/api/v1/lookup] FCC error:', err);
     return errorResponse('Upstream FCC API error', 'UPSTREAM_ERROR', 502);
@@ -107,10 +118,6 @@ export async function GET(req: NextRequest) {
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 204,
-    headers: {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Authorization, Content-Type',
-    },
+    headers: corsHeaders,
   });
 }
