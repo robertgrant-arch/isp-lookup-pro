@@ -138,3 +138,5 @@ For production persistence, replace the store with:
 ## License
 
 MIT
+
+<!-- v1 -->
