@@ -8,25 +8,36 @@ export async function GET(request: Request) {
 
   const forwardedFor = request.headers.get('x-forwarded-for');
   const realIp = request.headers.get('x-real-ip');
-  const userIp = forwardedFor?.split(',')[0]?.trim() || realIp || '0.0.0.0';
+  const userIp = forwardedFor?.split(',')[0]?.trim() || realIp || '';
 
   try {
-    // Use freeipapi.com with user's real IP
-    const res = await fetch(`https://freeipapi.com/api/json/${userIp}`);
+    // Use ip-api.com for reliable ISP detection (supports IP parameter)
+    const apiUrl = userIp ? `http://ip-api.com/json/${userIp}?fields=status,message,query,isp,org,as,asname,city,regionName,country,timezone,proxy,hosting,mobile` : `http://ip-api.com/json/?fields=status,message,query,isp,org,as,asname,city,regionName,country,timezone,proxy,hosting,mobile`;
+    const res = await fetch(apiUrl);
     const d = await res.json();
 
+    if (d.status === 'fail') {
+      throw new Error(d.message || 'IP lookup failed');
+    }
+
     return NextResponse.json({
-      ip: d.ipAddress || userIp,
-      isp: d.asnOrganization || 'Unknown',
-      org: d.asnOrganization || 'Unknown',
-      asn: d.asn ? `AS${d.asn}` : 'Unknown',
+      ip: d.query || userIp || 'Unknown',
+      isp: d.isp || 'Unknown',
+      org: d.org || 'Unknown',
+      asn: d.as || 'Unknown',
+      asnName: d.asname || 'Unknown',
       location: {
-        city: d.cityName || 'Unknown',
+        city: d.city || 'Unknown',
         region: d.regionName || 'Unknown',
-        country: d.countryName || 'Unknown',
-        timezone: d.timeZones?.[0] || 'Unknown',
+        country: d.country || 'Unknown',
+        timezone: d.timezone || 'Unknown',
       },
-      isProxy: d.isProxy || false,
+      connection: {
+        isMobile: d.mobile || false,
+        isProxy: d.proxy || false,
+        isHosting: d.hosting || false,
+      },
+      connectionType: '',
       token: token || null,
       timestamp: new Date().toISOString(),
     });
