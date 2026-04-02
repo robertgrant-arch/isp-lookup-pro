@@ -4,10 +4,6 @@
   "devCommand": "next dev",
   "installCommand": "npm install",
   "regions": ["iad1"],
-  "env": {
-    "ADMIN_SECRET": "@admin-secret",
-    "FCC_USER_AGENT": "@fcc-user-agent"
-  },
   "headers": [
     {
       "source": "/api/v1/(.*)",
