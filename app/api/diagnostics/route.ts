@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { headers } from 'next/headers';
 
 // In-memory token store (replace with DB in production)
 const tokenStore = new Map<string, { email?: string; phone?: string; createdAt: number; used: boolean }>();
@@ -8,49 +7,37 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const token = searchParams.get('token');
 
-  // Get user's real IP from headers
-  const headersList = headers();
-  const forwardedFor = headersList.get('x-forwarded-for');
-  const realIp = headersList.get('x-real-ip');
+  // Get user's real IP from request headers
+  const forwardedFor = request.headers.get('x-forwarded-for');
+  const realIp = request.headers.get('x-real-ip');
   const userIp = forwardedFor?.split(',')[0]?.trim() || realIp || '0.0.0.0';
 
   try {
-    // Fetch ISP data from ip-api.com (free, no key needed, supports CORS)
-    const ipApiRes = await fetch(
-      `http://ip-api.com/json/${userIp}?fields=status,message,country,regionName,city,zip,lat,lon,timezone,isp,org,as,asname,mobile,proxy,hosting,query`,
-      { next: { revalidate: 300 } }
-    );
+    // Fetch ISP data from ipapi.co (free HTTPS, 1000 req/day)
+    const ipApiRes = await fetch(`https://ipapi.co/${userIp}/json/`);
     const ipData = await ipApiRes.json();
 
-    // Also try ipapi.co as backup (free tier: 1000/day)
-    let backupData = null;
-    try {
-      const backupRes = await fetch(`https://ipapi.co/${userIp}/json/`, { next: { revalidate: 300 } });
-      backupData = await backupRes.json();
-    } catch (e) {
-      // Backup failed, continue with primary
-    }
-
     const result = {
-      ip: userIp,
-      isp: ipData.isp || backupData?.org || 'Unknown',
-      org: ipData.org || backupData?.org || 'Unknown',
-      asn: ipData.as || backupData?.asn || 'Unknown',
-      asnName: ipData.asname || 'Unknown',
+      ip: ipData.ip || userIp,
+      isp: ipData.org || 'Unknown',
+      org: ipData.org || 'Unknown',
+      asn: ipData.asn || 'Unknown',
+      asnName: ipData.org || 'Unknown',
       location: {
-        city: ipData.city || backupData?.city || 'Unknown',
-        region: ipData.regionName || backupData?.region || 'Unknown',
-        country: ipData.country || backupData?.country_name || 'Unknown',
-        zip: ipData.zip || backupData?.postal || '',
-        lat: ipData.lat || backupData?.latitude || 0,
-        lon: ipData.lon || backupData?.longitude || 0,
-        timezone: ipData.timezone || backupData?.timezone || 'Unknown',
+        city: ipData.city || 'Unknown',
+        region: ipData.region || 'Unknown',
+        country: ipData.country_name || 'Unknown',
+        zip: ipData.postal || '',
+        lat: ipData.latitude || 0,
+        lon: ipData.longitude || 0,
+        timezone: ipData.timezone || 'Unknown',
       },
       connection: {
-        isMobile: ipData.mobile || false,
-        isProxy: ipData.proxy || false,
-        isHosting: ipData.hosting || false,
+        isMobile: false,
+        isProxy: false,
+        isHosting: false,
       },
+      network: ipData.network || '',
       token: token || null,
       timestamp: new Date().toISOString(),
     };
@@ -70,12 +57,10 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { email, phone, secret } = body;
 
-    // Verify admin secret
     if (secret !== process.env.ADMIN_SECRET) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Generate unique token
     const token = crypto.randomUUID();
     tokenStore.set(token, {
       email: email || undefined,
