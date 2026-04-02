@@ -1,128 +1,144 @@
-import type { LocationResult, Provider } from './types';
-import { getTechInfo } from './techCodes';
+import type { LocationResult, Provider, TechCategory } from './types';
 
-const FCC_BASE = 'https://broadbandmap.fcc.gov/api/public/map';
-const USER_AGENT =
-  process.env.FCC_USER_AGENT ?? 'ISPLookupPro/1.0 (https://github.com/isplookuppro)';
+// ── Census Geocoder: address → lat/lng ────────────────────────────────────────
 
-const defaultHeaders = {
-  'User-Agent': USER_AGENT,
-  Accept: 'application/json',
-};
-
-// ─── Step 1: Search for location ─────────────────────────────────────────────
-
-interface FccLocationRaw {
-  location_id: string;
-  address: string;
-  unit?: string;
-  city: string;
-  state: string;
-  zip: string;
-  latitude: number;
-  longitude: number;
-}
-
-interface FccSearchResponse {
-  data?: FccLocationRaw[];
-  message?: string;
-}
-
-export async function searchLocations(address: string): Promise<LocationResult[]> {
-  const url = new URL(`${FCC_BASE}/listSearchedLocations`);
-  url.searchParams.set('search_text', address);
-  url.searchParams.set('limit', '10');
-
-  const res = await fetch(url.toString(), {
-    headers: defaultHeaders,
-    next: { revalidate: 0 },
-  });
-
-  if (!res.ok) {
-    throw new Error(`FCC location search failed: ${res.status} ${res.statusText}`);
-  }
-
-  const json: FccSearchResponse = await res.json();
-
-  if (!json.data || json.data.length === 0) {
-    return [];
-  }
-
-  return json.data.map((loc) => ({
-    location_id: loc.location_id,
-    address: loc.address,
-    unit: loc.unit ?? null,
-    city: loc.city,
-    state: loc.state,
-    zip: loc.zip,
-    latitude: loc.latitude,
-    longitude: loc.longitude,
-  }));
-}
-
-// ─── Step 2: Get availability for a location ─────────────────────────────────
-
-interface FccProviderRaw {
-  provider_id: number;
-  brand_name: string;
-  technology: number;
-  max_download_speed: number;
-  max_upload_speed: number;
-  low_latency: number; // 0 or 1
-  business_residential_code: string;
-}
-
-interface FccAvailabilityResponse {
-  data?: {
-    availability?: FccProviderRaw[];
+interface CensusMatch {
+  matchedAddress: string;
+  coordinates: { x: number; y: number };
+  addressComponents: {
+    zip: string;
+    streetName: string;
+    city: string;
+    state: string;
+    fromAddress: string;
+    toAddress: string;
+    preDirection: string;
+    suffixType: string;
   };
-  message?: string;
 }
 
-export async function getAvailability(locationId: string): Promise<Provider[]> {
-  const url = `${FCC_BASE}/listAvailability/${encodeURIComponent(locationId)}`;
+async function geocodeAddress(address: string): Promise<CensusMatch> {
+  const url = new URL(
+    'https://geocoding.geo.census.gov/geocoder/locations/onelineaddress'
+  );
+  url.searchParams.set('address', address);
+  url.searchParams.set('benchmark', '2020');
+  url.searchParams.set('format', 'json');
 
-  const res = await fetch(url, {
-    headers: defaultHeaders,
-    next: { revalidate: 0 },
-  });
-
+  const res = await fetch(url.toString(), { cache: 'no-store' });
   if (!res.ok) {
-    throw new Error(`FCC availability lookup failed: ${res.status} ${res.statusText}`);
+    throw new Error(`Census geocoder failed: ${res.status} ${res.statusText}`);
   }
 
-  const json: FccAvailabilityResponse = await res.json();
-  const raw = json.data?.availability ?? [];
-
-  return raw.map((p) => {
-    const techInfo = getTechInfo(p.technology);
-    return {
-      provider_id: p.provider_id,
-      brand_name: p.brand_name,
-      technology: p.technology,
-      technology_label: techInfo.label,
-      technology_category: techInfo.category,
-      max_download_speed: p.max_download_speed,
-      max_upload_speed: p.max_upload_speed,
-      low_latency: p.low_latency === 1,
-      business_residential_code: p.business_residential_code,
-    };
-  });
+  const json = await res.json();
+  const match = json?.result?.addressMatches?.[0];
+  if (!match) {
+    throw new Error('Address not found by Census geocoder');
+  }
+  return match as CensusMatch;
 }
 
-// ─── Combined lookup ──────────────────────────────────────────────────────────
+// ── BroadbandMap.com API: lat/lng → providers ─────────────────────────────────
+
+interface BroadbandMapProvider {
+  name: string;
+  technology: string;
+  technology_code: number;
+  max_download_mbps: number;
+  max_upload_mbps: number;
+  provider_id: number;
+}
+
+interface BroadbandMapResponse {
+  lat: number;
+  lng: number;
+  h3_hex: string;
+  h3_resolution: number;
+  service_type: string;
+  count: number;
+  providers: BroadbandMapProvider[];
+}
+
+function techCodeToCategory(code: number): TechCategory {
+  if (code === 50) return 'fiber';
+  if (code === 40 || code === 41 || code === 42 || code === 43) return 'cable';
+  if (code === 10 || code === 11 || code === 12 || code === 20) return 'dsl';
+  if (code === 60) return 'satellite';
+  if (code === 61) return 'satellite';
+  if (code === 70 || code === 71 || code === 79) return 'fixed_wireless';
+  return 'other';
+}
+
+function techCodeToLabel(code: number): string {
+  const map: Record<number, string> = {
+    10: 'ADSL',
+    11: 'ADSL2',
+    12: 'VDSL',
+    20: 'DSL (Symmetric)',
+    40: 'DOCSIS 3.0',
+    41: 'DOCSIS 3.1',
+    42: 'Cable (Other)',
+    43: 'Cable Modem',
+    50: 'Fiber to the Premises',
+    60: 'GSO Satellite',
+    61: 'LEO Satellite',
+    70: 'Licensed Fixed Wireless',
+    71: 'Unlicensed Fixed Wireless',
+    79: 'Fixed Wireless (Other)',
+  };
+  return map[code] ?? `Technology ${code}`;
+}
+
+async function getProvidersAtLocation(
+  lat: number,
+  lng: number
+): Promise<BroadbandMapProvider[]> {
+  const url = `https://broadbandmap.com/api/v1/location/internet?lat=${lat}&lng=${lng}`;
+  const res = await fetch(url, { cache: 'no-store' });
+  if (!res.ok) {
+    throw new Error(
+      `BroadbandMap.com API failed: ${res.status} ${res.statusText}`
+    );
+  }
+  const json: BroadbandMapResponse = await res.json();
+  return json.providers ?? [];
+}
+
+// ── Combined lookup ───────────────────────────────────────────────────────────
 
 export async function lookupAddress(address: string): Promise<{
   location: LocationResult;
   providers: Provider[];
 } | null> {
-  const locations = await searchLocations(address);
-  if (locations.length === 0) return null;
+  // Step 1: Geocode the address
+  let geo: CensusMatch;
+  try {
+    geo = await geocodeAddress(address);
+  } catch {
+    return null;
+  }
 
-  const location = locations[0];
-  const providers = await getAvailability(location.location_id);
+  const lat = geo.coordinates.y;
+  const lng = geo.coordinates.x;
+  const ac = geo.addressComponents;
 
-  // Deduplicate by provider + technology combo and sort: fastest first
+  // Step 2: Look up broadband providers at that location
+  const raw = await getProvidersAtLocation(lat, lng);
+
+  // Step 3: Map to our Provider type
+  const providers: Provider[] = raw.map((p) => ({
+    provider_id: p.provider_id,
+    brand_name: p.name,
+    technology: p.technology_code,
+    technology_label: techCodeToLabel(p.technology_code),
+    technology_category: techCodeToCategory(p.technology_code),
+    max_download_speed: p.max_download_mbps,
+    max_upload_speed: p.max_upload_mbps,
+    low_latency: p.technology_code !== 60, // GSO satellite = high latency
+    business_residential_code: 'X',
+  }));
+
+  // Deduplicate by provider + technology and sort fastest first
   const seen = new Set<string>();
   const unique = providers.filter((p) => {
     const key = `${p.provider_id}-${p.technology}`;
@@ -130,8 +146,18 @@ export async function lookupAddress(address: string): Promise<{
     seen.add(key);
     return true;
   });
-
   unique.sort((a, b) => b.max_download_speed - a.max_download_speed);
+
+  const location: LocationResult = {
+    location_id: `census-${lat}-${lng}`,
+    address: geo.matchedAddress.split(',')[0] ?? geo.matchedAddress,
+    unit: null,
+    city: ac.city,
+    state: ac.state,
+    zip: ac.zip,
+    latitude: lat,
+    longitude: lng,
+  };
 
   return { location, providers: unique };
 }
