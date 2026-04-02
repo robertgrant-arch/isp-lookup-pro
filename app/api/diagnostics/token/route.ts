@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
-// In-memory token store (shared with diagnostics route)
-// In production, use Redis or a database
+// In-memory token store
 const tokenStore = new Map<string, {
   email?: string;
   phone?: string;
@@ -11,9 +10,6 @@ const tokenStore = new Map<string, {
   used: boolean;
   expiresAt: number;
 }>();
-
-// Export for use by the diagnostics route
-export { tokenStore };
 
 export async function POST(request: Request) {
   try {
@@ -27,7 +23,7 @@ export async function POST(request: Request) {
 
     const token = `diag_${crypto.randomBytes(16).toString('hex')}`;
     const now = Date.now();
-    const expiresAt = now + 24 * 60 * 60 * 1000; // 24 hours
+    const expiresAt = now + 24 * 60 * 60 * 1000;
 
     tokenStore.set(token, {
       email: email || undefined,
