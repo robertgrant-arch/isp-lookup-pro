@@ -12,7 +12,7 @@ export function Navbar() {
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2.5 group">
           <div className="w-7 h-7 rounded bg-accent-green/10 border border-accent-green/30 flex items-center justify-center group-hover:bg-accent-green/20 transition-colors">
-            <span className="text-accent-green text-sm font-mono font-bold">⬡</span>
+            <span className="text-accent-green text-sm font-mono font-bold">\u25CB</span>
           </div>
           <span className="font-display font-bold text-white text-sm tracking-tight">
             ISP<span className="text-accent-green">Lookup</span>
@@ -31,6 +31,17 @@ export function Navbar() {
             )}
           >
             Lookup
+          </Link>
+          <Link
+            href="/pricing"
+            className={clsx(
+              'px-3 py-1.5 rounded text-xs font-mono transition-colors',
+              path === '/pricing'
+                ? 'text-white bg-white/10'
+                : 'text-zinc-500 hover:text-zinc-300'
+            )}
+          >
+            Pricing
           </Link>
           <Link
             href="/dashboard"
