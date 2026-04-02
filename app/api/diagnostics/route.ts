@@ -11,36 +11,25 @@ export async function GET(request: Request) {
   const userIp = forwardedFor?.split(',')[0]?.trim() || realIp || '0.0.0.0';
 
   try {
-    // Use ipwho.is - free, HTTPS, no key needed, no Cloudflare blocking
-    const res = await fetch(`https://ipwho.is/${userIp}`);
+    // Use freeipapi.com with user's real IP
+    const res = await fetch(`https://freeipapi.com/api/json/${userIp}`);
     const d = await res.json();
 
-    const result = {
-      ip: d.ip || userIp,
-      isp: d.connection?.isp || 'Unknown',
-      org: d.connection?.org || 'Unknown',
-      asn: d.connection?.asn ? `AS${d.connection.asn}` : 'Unknown',
-      asnName: d.connection?.org || 'Unknown',
+    return NextResponse.json({
+      ip: d.ipAddress || userIp,
+      isp: d.asnOrganization || 'Unknown',
+      org: d.asnOrganization || 'Unknown',
+      asn: d.asn ? `AS${d.asn}` : 'Unknown',
       location: {
-        city: d.city || 'Unknown',
-        region: d.region || 'Unknown',
-        country: d.country || 'Unknown',
-        zip: d.postal || '',
-        lat: d.latitude || 0,
-        lon: d.longitude || 0,
-        timezone: d.timezone?.id || 'Unknown',
+        city: d.cityName || 'Unknown',
+        region: d.regionName || 'Unknown',
+        country: d.countryName || 'Unknown',
+        timezone: d.timeZones?.[0] || 'Unknown',
       },
-      connection: {
-        isMobile: d.type === 'mobile',
-        isProxy: false,
-        isHosting: d.type === 'hosting',
-      },
-      connectionType: d.connection?.type || '',
+      isProxy: d.isProxy || false,
       token: token || null,
       timestamp: new Date().toISOString(),
-    };
-
-    return NextResponse.json(result);
+    });
   } catch (error) {
     return NextResponse.json(
       { error: 'Failed to detect ISP', details: String(error) },
