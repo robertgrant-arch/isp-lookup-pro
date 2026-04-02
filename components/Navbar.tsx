@@ -43,14 +43,17 @@ export function Navbar() {
           >
             Dashboard
           </Link>
-          <a
-            href="/api/v1/lookup"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-3 py-1.5 rounded text-xs font-mono text-zinc-500 hover:text-zinc-300 transition-colors"
+          <Link
+            href="/docs"
+            className={clsx(
+              'px-3 py-1.5 rounded text-xs font-mono transition-colors',
+              path === '/docs'
+                ? 'text-white bg-white/10'
+                : 'text-zinc-500 hover:text-zinc-300'
+            )}
           >
-            API ↗
-          </a>
+            API Docs
+          </Link>
         </div>
       </div>
     </nav>
