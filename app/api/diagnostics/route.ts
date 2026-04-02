@@ -1,43 +1,41 @@
 import { NextResponse } from 'next/server';
 
-// In-memory token store (replace with DB in production)
 const tokenStore = new Map<string, { email?: string; phone?: string; createdAt: number; used: boolean }>();
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const token = searchParams.get('token');
 
-  // Get user's real IP from request headers
   const forwardedFor = request.headers.get('x-forwarded-for');
   const realIp = request.headers.get('x-real-ip');
   const userIp = forwardedFor?.split(',')[0]?.trim() || realIp || '0.0.0.0';
 
   try {
-    // Fetch ISP data from ipapi.co (free HTTPS, 1000 req/day)
-    const ipApiRes = await fetch(`https://ipapi.co/${userIp}/json/`);
-    const ipData = await ipApiRes.json();
+    // Use ipwho.is - free, HTTPS, no key needed, no Cloudflare blocking
+    const res = await fetch(`https://ipwho.is/${userIp}`);
+    const d = await res.json();
 
     const result = {
-      ip: ipData.ip || userIp,
-      isp: ipData.org || 'Unknown',
-      org: ipData.org || 'Unknown',
-      asn: ipData.asn || 'Unknown',
-      asnName: ipData.org || 'Unknown',
+      ip: d.ip || userIp,
+      isp: d.connection?.isp || 'Unknown',
+      org: d.connection?.org || 'Unknown',
+      asn: d.connection?.asn ? `AS${d.connection.asn}` : 'Unknown',
+      asnName: d.connection?.org || 'Unknown',
       location: {
-        city: ipData.city || 'Unknown',
-        region: ipData.region || 'Unknown',
-        country: ipData.country_name || 'Unknown',
-        zip: ipData.postal || '',
-        lat: ipData.latitude || 0,
-        lon: ipData.longitude || 0,
-        timezone: ipData.timezone || 'Unknown',
+        city: d.city || 'Unknown',
+        region: d.region || 'Unknown',
+        country: d.country || 'Unknown',
+        zip: d.postal || '',
+        lat: d.latitude || 0,
+        lon: d.longitude || 0,
+        timezone: d.timezone?.id || 'Unknown',
       },
       connection: {
-        isMobile: false,
+        isMobile: d.type === 'mobile',
         isProxy: false,
-        isHosting: false,
+        isHosting: d.type === 'hosting',
       },
-      network: ipData.network || '',
+      connectionType: d.connection?.type || '',
       token: token || null,
       timestamp: new Date().toISOString(),
     };
@@ -51,7 +49,6 @@ export async function GET(request: Request) {
   }
 }
 
-// POST: Generate a new diagnostic token
 export async function POST(request: Request) {
   try {
     const body = await request.json();
