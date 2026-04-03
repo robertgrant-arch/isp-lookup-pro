@@ -33,15 +33,16 @@ export function Navbar() {
             Lookup
           </Link>
           <Link
-            href="/pricing"
+            href="/"
             className={clsx(
               'px-3 py-1.5 rounded text-xs font-mono transition-colors',
               path === '/pricing'
                 ? 'text-white bg-white/10'
                 : 'text-zinc-500 hover:text-zinc-300'
             )}
+            title="Click any provider card in search results to see their pricing plans"
           >
-            Pricing
+            Provider Plans
           </Link>
           <Link
             href="/dashboard"
