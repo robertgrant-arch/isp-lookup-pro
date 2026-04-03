@@ -64,6 +64,17 @@ export function ResultsPanel({ result }: ResultsPanelProps) {
             Location ID: {result.location_id} · {result.latitude.toFixed(5)}, {result.longitude.toFixed(5)}
           </p>
         </div>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                                <a href={`sms:?&body=Your internet options for ${encodeURIComponent(result.address)}: ${typeof window !== 'undefined' ? window.location.href : ''}`} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono border border-accent-green/30 bg-accent-green/5 text-accent-green hover:bg-accent-green/10 transition-colors">
+                                                📱 Text Token
+                                              </a>
+                                <a href={`mailto:?subject=Internet Options for ${encodeURIComponent(result.address)}&body=Here are the available internet providers at ${result.address}:%0A%0A${result.providers.slice(0,3).map(p => p.brand_name + ' - ' + p.max_download_speed + ' Mbps').join('%0A')}%0A%0AView all ${result.providers.length} providers: ${typeof window !== 'undefined' ? window.location.href : ''}`} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono border border-accent-blue/30 bg-accent-blue/5 text-accent-blue hover:bg-accent-blue/10 transition-colors">
+                                                ✉️ Email Token
+                                              </a>
+                                <a href={`https://broadbandmap.fcc.gov/location-summary/fixed?location_id=${result.location_id}&addr=${encodeURIComponent(result.address)}&unit=&lat=${result.latitude}&lon=${result.longitude}&zoom=14`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-[10px] font-mono border border-zinc-600/40 bg-zinc-800/40 text-zinc-300 hover:text-white hover:border-zinc-400 transition-colors">
+                                                🔍 Check Provider
+                                              </a>
+                              </div>
 
         <div className="shrink-0 text-right">
           <div className="text-3xl font-mono font-bold text-white">{result.providers.length}</div>
