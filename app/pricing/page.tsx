@@ -91,7 +91,7 @@ export default function PricingPage() {
             <ul className="space-y-3 mb-8 flex-1">
               {plan.features.map((f) => (
                 <li key={f} className="flex items-start gap-2 text-sm text-zinc-300">
-                  <span className="text-accent-green mt-0.5">\u2713</span>
+                                <span className="text-accent-green mt-0.5">✓</span>
                   {f}
                 </li>
               ))}
